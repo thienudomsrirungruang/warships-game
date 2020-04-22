@@ -8,15 +8,37 @@ import sys
 
 import queue
 
+import random
+
+import string
+
 users_lock = threading.Lock()
 
-# a dict of tuple(user_ip, user_port), IOQueue
+# a dict of tuple(user_ip, user_port), Player
 users = {}
+
+# queue for chat messages
+chat_queue = queue.Queue()
 
 class Player(object):
     def __init__(self):
-        self.input_queue = queue.Queue()
+        # No input queue - use the appropriate shared or game-specific input queue instead
         self.output_queue = queue.Queue()
+        
+        # TODO: Enter name
+        self.name = "".join([random.choice(string.ascii_lowercase) for i in range(random.randint(3, 6))])
+    
+    # Input format: [keyword] [values...]
+    # Possible keyword-value combinations:
+    # chat [multi-space words]: send a message to chat.
+    # TODO: add more!
+    def handle_input(self, client_input):
+        split_input = client_input.split(" ")
+        keyword = split_input[0]
+        if keyword == "chat":
+            chat_queue.put("{}: {}".format(self.name, " ".join(split_input[1:])))
+        else:
+            self.output_queue.put("error keyword {} not found".format(keyword))
 
 def handle_user_and_input(conn, addr):
     print("INFO: new thread started")
@@ -25,6 +47,7 @@ def handle_user_and_input(conn, addr):
     users[(addr[0], addr[1])] = player
     users_lock.release()
     start_new_thread(handle_output, (conn, addr, player))
+    chat_queue.put("{} has joined the game.".format(player.name))
     try:
         while True:
             data = conn.recv(1024)
@@ -32,7 +55,7 @@ def handle_user_and_input(conn, addr):
                 data = data.decode("utf-8")
                 print("INFO: data received from {}: {}".format(addr, data))
                 users_lock.acquire()
-                player.input_queue.put(data)
+                player.handle_input(data)
                 users_lock.release()
                 # conn.send(("hello world " + data).encode("utf-8"))
     except OSError:
@@ -41,6 +64,7 @@ def handle_user_and_input(conn, addr):
     users_lock.acquire()
     del users[(addr[0], addr[1])]
     users_lock.release()
+    chat_queue.put("{} has left the game.".format(player.name))
     conn.close()
 
 def handle_output(conn, addr, player):
@@ -64,15 +88,14 @@ def lobby():
     while True:
         time.sleep(.1)
         users_lock.acquire()
-        for user, player in users.items():
-            while not player.input_queue.empty():
-                # print("hi?")
-                data = player.input_queue.get()
-                # print("DEBUG: data = {}".format(data))
-                msg = str(user) +  " : " + data
-                for player_to_send_to in users.values():
-                    # print("DEBUG: sending message {} to queue {}".format(msg, player_to_send_to))
-                    player_to_send_to.output_queue.put(msg)
+        while not chat_queue.empty():
+            # print("hi?")
+            data = chat_queue.get()
+            # print("DEBUG: data = {}".format(data))
+            msg = "chat {}".format(data)
+            for player_to_send_to in users.values():
+                # print("DEBUG: sending message {} to queue {}".format(msg, player_to_send_to))
+                player_to_send_to.output_queue.put(msg)
         users_lock.release()
 
 def debug():
