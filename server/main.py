@@ -39,7 +39,7 @@ def handle_user_and_input(conn, addr):
         print("ERROR: Connection lost to {}".format(addr[0]))
     print("ERROR: Closed connection to {}".format(addr[0]))
     users_lock.acquire()
-    del users[(conn, addr)]
+    del users[(addr[0], addr[1])]
     users_lock.release()
     conn.close()
 
