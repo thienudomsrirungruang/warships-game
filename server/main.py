@@ -13,7 +13,7 @@ users_lock = threading.Lock()
 # a dict of tuple(user_ip, user_port), IOQueue
 users = {}
 
-class IOQueue(object):
+class Player(object):
     def __init__(self):
         self.input_queue = queue.Queue()
         self.output_queue = queue.Queue()
@@ -21,10 +21,10 @@ class IOQueue(object):
 def handle_user_and_input(conn, addr):
     print("INFO: new thread started")
     users_lock.acquire()
-    io_queue = IOQueue()
-    users[(addr[0], addr[1])] = io_queue
+    player = Player()
+    users[(addr[0], addr[1])] = player
     users_lock.release()
-    start_new_thread(handle_output, (conn, addr, io_queue))
+    start_new_thread(handle_output, (conn, addr, player))
     try:
         while True:
             data = conn.recv(1024)
@@ -32,7 +32,7 @@ def handle_user_and_input(conn, addr):
                 data = data.decode("utf-8")
                 print("INFO: data received from {}: {}".format(addr, data))
                 users_lock.acquire()
-                io_queue.input_queue.put(data)
+                player.input_queue.put(data)
                 users_lock.release()
                 # conn.send(("hello world " + data).encode("utf-8"))
     except OSError:
@@ -43,15 +43,15 @@ def handle_user_and_input(conn, addr):
     users_lock.release()
     conn.close()
 
-def handle_output(conn, addr, io_queue):
+def handle_output(conn, addr, player):
     try:
         while True:
             users_lock.acquire()
-            if io_queue.output_queue.empty():
+            if player.output_queue.empty():
                 users_lock.release()
                 time.sleep(.1)
                 continue
-            data = io_queue.output_queue.get()
+            data = player.output_queue.get()
             users_lock.release()
             print("INFO: sending output to {}: {}".format(addr, data))
             conn.send(data.encode("utf-8"))
@@ -60,19 +60,19 @@ def handle_output(conn, addr, io_queue):
 
 # lobby for matchmaking, and user communication
 def lobby():
-    #temp - echo chat to all
+    # temp - echo chat to all
     while True:
         time.sleep(.1)
         users_lock.acquire()
-        for user, io_queue in users.items():
-            while not io_queue.input_queue.empty():
+        for user, player in users.items():
+            while not player.input_queue.empty():
                 # print("hi?")
-                data = io_queue.input_queue.get()
+                data = player.input_queue.get()
                 # print("DEBUG: data = {}".format(data))
                 msg = str(user) +  " : " + data
-                for send_to_io_queue in users.values():
-                    # print("DEBUG: sending message {} to queue {}".format(msg, send_to_io_queue))
-                    send_to_io_queue.output_queue.put(msg)
+                for player_to_send_to in users.values():
+                    # print("DEBUG: sending message {} to queue {}".format(msg, player_to_send_to))
+                    player_to_send_to.output_queue.put(msg)
         users_lock.release()
 
 def debug():
