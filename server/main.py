@@ -12,6 +12,7 @@ import random
 
 import string
 
+# lock for the users dict to prevent race conditions
 users_lock = threading.Lock()
 
 # a dict of tuple(user_ip, user_port), Player
@@ -20,9 +21,21 @@ users = {}
 # queue for chat messages
 chat_queue = queue.Queue()
 
+# matchmaking queue 
+# TODO: implement better matchmaking (prevent duplicate matches within a reasonable time, etc.)
+matchmaking_queue = []
+matchmaking_queue_lock = threading.Lock()
+
 class Player(object):
     def __init__(self):
         # No input queue - use the appropriate shared or game-specific input queue instead
+        # Output format: [keyword] [values...]
+        # Possible keyword-value combinations:
+        # chat [multi-space words]: send a message to chat
+        # matchmake join: matchmaking queue has been joined
+        # matchmake leave: matchmaking queue has been left
+        # matchmake match [name]: match has been found with [name]
+        # error [message]: error
         self.output_queue = queue.Queue()
         
         # TODO: Enter name
@@ -30,13 +43,32 @@ class Player(object):
     
     # Input format: [keyword] [values...]
     # Possible keyword-value combinations:
-    # chat [multi-space words]: send a message to chat.
-    # TODO: add more!
+    # chat [multi-space words]: send a message to chat
+    # matchmake join: join matchmaking queue
+    # matchmake leave: leave matchmaking queue
     def handle_input(self, client_input):
         split_input = client_input.split(" ")
         keyword = split_input[0]
         if keyword == "chat":
             chat_queue.put("{}: {}".format(self.name, " ".join(split_input[1:])))
+        elif keyword == "matchmake":
+            # TODO: detect if in match
+            if split_input[1] == "join":
+                matchmaking_queue_lock.acquire()
+                if self in matchmaking_queue:
+                    self.output_queue.put("error already in matchmaking")
+                else:
+                    matchmaking_queue.append(self)
+                    self.output_queue.put("matchmake join")
+                matchmaking_queue_lock.release()
+            elif split_input[1] == "leave":
+                matchmaking_queue_lock.acquire()
+                if self in matchmaking_queue:
+                    matchmaking_queue.remove(self)
+                    self.output_queue.put("matchmake leave")
+                else:
+                    self.output_queue.put("error not in matchmaking")
+                matchmaking_queue_lock.release()
         else:
             self.output_queue.put("error keyword {} not found".format(keyword))
 
@@ -65,6 +97,10 @@ def handle_user_and_input(conn, addr):
     del users[(addr[0], addr[1])]
     users_lock.release()
     chat_queue.put("{} has left the game.".format(player.name))
+    matchmaking_queue_lock.acquire()
+    if player in matchmaking_queue:
+        matchmaking_queue.remove(player)
+    matchmaking_queue_lock.release()
     conn.close()
 
 def handle_output(conn, addr, player):
@@ -82,9 +118,19 @@ def handle_output(conn, addr, player):
     except OSError:
         print("ERROR: Connection lost to {}".format(addr[0]))
 
-# lobby for matchmaking, and user communication
+# lobby for matchmaking
 def lobby():
-    # temp - echo chat to all
+    while True:
+        time.sleep(.1)
+        matchmaking_queue_lock.acquire()
+        while len(matchmaking_queue) >= 2:
+            p1 = matchmaking_queue.pop(0)
+            p2 = matchmaking_queue.pop(0)
+            print("INFO: Match between {} and {}".format(p1.name, p2.name))
+        matchmaking_queue_lock.release()
+        
+def handle_global_chat():
+    # echo chat to all
     while True:
         time.sleep(.1)
         users_lock.acquire()
@@ -119,6 +165,7 @@ def main(port):
     print("INFO: socket is now listening")
 
     start_new_thread(lobby,())
+    start_new_thread(handle_global_chat, ())
 
 
     while True:
