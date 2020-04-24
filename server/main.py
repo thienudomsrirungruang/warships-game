@@ -63,24 +63,27 @@ class Player(object):
             chat_queue.put("{}: {}".format(self.name, " ".join(split_input[1:])))
         elif keyword == "matchmake":
             if self.match is None:
-                if split_input[1] == "join":
-                    matchmaking_queue_lock.acquire()
-                    if self in matchmaking_queue:
-                        self.output_queue.put("error already in matchmaking")
-                    else:
-                        matchmaking_queue.append(self)
-                        self.output_queue.put("matchmake join")
-                    matchmaking_queue_lock.release()
-                elif split_input[1] == "leave":
-                    matchmaking_queue_lock.acquire()
-                    if self in matchmaking_queue:
-                        matchmaking_queue.remove(self)
-                        self.output_queue.put("matchmake leave")
-                    else:
-                        self.output_queue.put("error not in matchmaking")
-                    matchmaking_queue_lock.release()
+                if len(split_input) < 2:
+                    self.output_queue.put("error matchmake requires 2 values")
                 else:
-                    self.output_queue.put("error command {} not found".format(client_input))
+                    if split_input[1] == "join":
+                        matchmaking_queue_lock.acquire()
+                        if self in matchmaking_queue:
+                            self.output_queue.put("error already in matchmaking")
+                        else:
+                            matchmaking_queue.append(self)
+                            self.output_queue.put("matchmake join")
+                        matchmaking_queue_lock.release()
+                    elif split_input[1] == "leave":
+                        matchmaking_queue_lock.acquire()
+                        if self in matchmaking_queue:
+                            matchmaking_queue.remove(self)
+                            self.output_queue.put("matchmake leave")
+                        else:
+                            self.output_queue.put("error not in matchmaking")
+                        matchmaking_queue_lock.release()
+                    else:
+                        self.output_queue.put("error command {} not found".format(client_input))
             else:
                 self.output_queue.put("error already in match")
         elif keyword == "match":
