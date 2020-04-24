@@ -129,6 +129,7 @@ class Match:
                                 if result:
                                     self.p1.output_queue.put("match ready self")
                                     self.p2.output_queue.put("match ready opponent")
+                                    self.initialised_boards += 1
                                 else:
                                     self.p1.output_queue.put("error initialisation failed")
                             else:
@@ -146,10 +147,37 @@ class Match:
                                 if result:
                                     self.p2.output_queue.put("match ready self")
                                     self.p1.output_queue.put("match ready opponent")
+                                    self.initialised_boards += 1
                                 else:
                                     self.p2.output_queue.put("error initialisation failed")
                             else:
                                 self.p2.output_queue.put("error already initialised")
+                elif keyword == "guess":
+                    if len(split_input) < 3:
+                        player.output_queue.put("error guess requires 3 arguments")
+                    elif self.initialised_boards < 2:
+                        player.output_queue.put("error both players not ready yet")
+                    else:
+                        try:
+                            x = int(split_input[1])
+                            y = int(split_input[2])
+                            # oob
+                            if x < 0 or y < 0 or x >= self.p1_board.width or y >= self.p1_board.height:
+                                player.output_queue.put("error out of bounds")
+                            elif player == self.p1:
+                                if self.p2_board.board[x][y].hit:
+                                    self.p1.output_queue.put("error already guessed")
+                                else:
+                                    is_boat, remaining_ships = self.p2_board.guess(x, y)
+                                    self.p1.output_queue.put("match guess {} {}".format("hit" if is_boat else "miss", remaining_ships))
+                            else: # player == self.p2
+                                if self.p1_board.board[x][y].hit:
+                                    self.p2.output_queue.put("error already guessed")
+                                else:
+                                    is_boat, remaining_ships = self.p1_board.guess(x, y)
+                                    self.p2.output_queue.put("match guess {} {}".format("hit" if is_boat else "miss", remaining_ships))
+                        except ValueError:
+                            player.output_queue.put("error cannot parse input")
                 else:
                     player.output_queue.put("error command match {} not found".format(keyword))
 
@@ -188,6 +216,18 @@ class Board:
                     self.board[j][y].boat = i
         self.initialised = True
         return True
+    
+    def guess(self, x, y):
+        if not self.board[x][y].hit:
+            is_boat = False
+            self.board[x][y].hit = True
+            if self.board[x][y].boat != -1:
+                is_boat = True
+                boat = self.board[x][y].boat
+                self.remaining_hidden[boat] -= 1
+                if self.remaining_hidden[boat] <= 0:
+                    self.remaining_ships -= 1
+            return is_boat, self.remaining_ships
 
 # a cell in a board.
 # boat:
