@@ -150,7 +150,8 @@ class Match:
                                     self.p2.output_queue.put("error initialisation failed")
                             else:
                                 self.p2.output_queue.put("error already initialised")
-
+                else:
+                    player.output_queue.put("error command match {} not found".format(keyword))
 
 # board class for player boards (0-indexed, row-first)
 class Board:
