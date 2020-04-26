@@ -42,6 +42,8 @@ class Player(object):
         # match ready [self/opponent]: confirmation that you/opponent is ready
         # match guess self [hit/miss] [num_ships]: after a guess, shows whether it was successful or not.
         # match guess opponent [x] [y] [hit/miss] [num_ships]: after an opponent guess, shows location, and whether it was successful or not
+        # match win [self/opponent]: signals a win
+        # match leave [self/opponent]: signals the match has been left
         self.output_queue = queue.Queue()
         
         # TODO: Enter name
@@ -100,9 +102,9 @@ class Match:
         # possible messages:
         # place [x1] [y1] [h/w] [x2] [y2] [h/w] ... NUM_SHIPS times - initialise the board.
         # guess [x] [y] - guess x, y.
+        # leave - leave the match (and forfeit if the game is not over).
         self.input_queue = queue.Queue()
-        start_new_thread(self.handle_input, ())
-
+        
         # game variables
         self.p1 = p1
         self.p2 = p2
@@ -112,7 +114,10 @@ class Match:
 
         self.initialised_boards = 0
         self.turn = random.choice([p1, p2])
-    
+        self.game_ended = False
+
+        start_new_thread(self.handle_input, ())
+
     def change_turn(self):
         if self.turn == self.p1:
             self.turn = self.p2
@@ -122,6 +127,22 @@ class Match:
             self.turn = self.p1
             self.p1.output_queue.put("match turn self")
             self.p2.output_queue.put("match turn opponent")
+
+    def leave_match(self, player):
+        if player == self.p1:
+            self.p1.match = None
+            self.p1.output_queue.put("match leave self")
+            self.p2.output_queue.put("match leave opponent")
+            if not self.game_ended:
+                self.p2.output_queue.put("match win self")
+                self.game_ended = True
+        elif player == self.p2:
+            self.p2.match = None
+            self.p2.output_queue.put("match leave self")
+            self.p1.output_queue.put("match leave opponent")
+            if not self.game_ended:
+                self.p1.output_queue.put("match win self")
+                self.game_ended = True
 
     def handle_input(self):
         while True:
@@ -133,7 +154,9 @@ class Match:
                 split_input = input_message.split(" ")
                 keyword = split_input[0]
                 if keyword == "place":
-                    if player == self.p1:
+                    if self.game_ended:
+                        player.output_queue.put("error game has ended")
+                    elif player == self.p1:
                         if len(split_input) < NUM_SHIPS * 3 + 1:
                             self.p1.output_queue.put("error place requires {} arguments".format(NUM_SHIPS * 3))
                         else:
@@ -176,6 +199,8 @@ class Match:
                 elif keyword == "guess":
                     if len(split_input) < 3:
                         player.output_queue.put("error guess requires 3 arguments")
+                    elif self.game_ended:
+                        player.output_queue.put("error game has ended")
                     elif self.initialised_boards < 2:
                         player.output_queue.put("error both players not ready yet")
                     else:
@@ -193,7 +218,12 @@ class Match:
                                         is_boat, remaining_ships = self.p2_board.guess(x, y)
                                         self.p1.output_queue.put("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships))
                                         self.p2.output_queue.put("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships))
-                                        self.change_turn()
+                                        if remaining_ships == 0:
+                                            self.p1.output_queue.put("match win self")
+                                            self.p2.output_queue.put("match win opponent")
+                                            self.game_ended = True
+                                        else:
+                                            self.change_turn()
                                 else:
                                     self.p1.output_queue.put("error not player's turn")
                             else: # player == self.p2
@@ -204,11 +234,18 @@ class Match:
                                         is_boat, remaining_ships = self.p1_board.guess(x, y)
                                         self.p2.output_queue.put("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships))
                                         self.p1.output_queue.put("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships))
-                                        self.change_turn()
+                                        if remaining_ships == 0:
+                                            self.p2.output_queue.put("match win self")
+                                            self.p1.output_queue.put("match win opponent")
+                                            self.game_ended = True
+                                        else:
+                                            self.change_turn()
                                 else:
                                     self.p2.output_queue.put("error not player's turn")
                         except ValueError:
                             player.output_queue.put("error cannot parse input")
+                elif keyword == "leave":
+                    self.leave_match(player)
                 else:
                     player.output_queue.put("error command match {} not found".format(keyword))
 
