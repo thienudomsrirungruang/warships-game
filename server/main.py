@@ -109,6 +109,8 @@ class Match:
         self.p1 = p1
         self.p2 = p2
 
+        self.in_game = {p1, p2}
+
         self.p1_board = Board()
         self.p2_board = Board()
 
@@ -121,28 +123,40 @@ class Match:
     def change_turn(self):
         if self.turn == self.p1:
             self.turn = self.p2
-            self.p1.output_queue.put("match turn opponent")
-            self.p2.output_queue.put("match turn self")
+            self.output_to(self.p1, ("match turn opponent"))
+            self.output_to(self.p2, ("match turn self"))
         else:
             self.turn = self.p1
-            self.p1.output_queue.put("match turn self")
-            self.p2.output_queue.put("match turn opponent")
+            self.output_to(self.p1, ("match turn self"))
+            self.output_to(self.p2, ("match turn opponent"))
 
     def leave_match(self, player):
         if player == self.p1:
-            self.p1.match = None
-            self.p1.output_queue.put("match leave self")
-            self.p2.output_queue.put("match leave opponent")
-            if not self.game_ended:
-                self.p2.output_queue.put("match win self")
-                self.game_ended = True
+            if self.p1 in self.in_game:
+                self.p1.match = None
+                self.output_to(self.p1, ("match leave self"))
+                self.output_to(self.p2, ("match leave opponent"))
+                self.in_game.remove(self.p1)
+                if not self.game_ended:
+                    self.output_to(self.p2, ("match win self"))
+                    self.game_ended = True
+            else:
+                self.p1.output_queue.put("error not in this match")
         elif player == self.p2:
-            self.p2.match = None
-            self.p2.output_queue.put("match leave self")
-            self.p1.output_queue.put("match leave opponent")
-            if not self.game_ended:
-                self.p1.output_queue.put("match win self")
-                self.game_ended = True
+            if self.p2 in self.in_game:
+                self.p2.match = None
+                self.output_to(self.p2, ("match leave self"))
+                self.output_to(self.p1, ("match leave opponent"))
+                self.in_game.remove(self.p2)
+                if not self.game_ended:
+                    self.output_to(self.p1, ("match win self"))
+                    self.game_ended = True
+            else:
+                self.p2.output_queue.put("error not in this match")
+
+    def output_to(self, player, output):
+        if player in self.in_game:
+            player.output_queue.put(output)
 
     def handle_input(self):
         while True:
@@ -150,104 +164,104 @@ class Match:
             while not self.input_queue.empty():
                 player, input_message = self.input_queue.get()
                 if player not in (self.p1, self.p2):
-                    player.output_queue.put("error not authorised")
+                    self.output_to(player, ("error not authorised"))
                 split_input = input_message.split(" ")
                 keyword = split_input[0]
                 if keyword == "place":
                     if self.game_ended:
-                        player.output_queue.put("error game has ended")
+                        self.output_to(player, ("error game has ended"))
                     elif player == self.p1:
                         if len(split_input) < NUM_SHIPS * 3 + 1:
-                            self.p1.output_queue.put("error place requires {} arguments".format(NUM_SHIPS * 3))
+                            self.output_to(self.p1, ("error place requires {} arguments".format(NUM_SHIPS * 3)))
                         else:
                             if not self.p1_board.initialised:
                                 try:
                                     func_in = [tuple(int(split_input[i]) if i % 3 != 0 else split_input[i] == 'h' for i in range(j, j+3)) for j in range(1, NUM_SHIPS * 3 + 1, 3)]
                                 except:
-                                    self.p1.output_queue.put("error cannot parse input")
+                                    self.output_to(self.p1, ("error cannot parse input"))
                                 result = self.p1_board.initialise(func_in)
                                 if result:
-                                    self.p1.output_queue.put("match ready self")
-                                    self.p2.output_queue.put("match ready opponent")
+                                    self.output_to(self.p1, ("match ready self"))
+                                    self.output_to(self.p2, ("match ready opponent"))
                                     self.initialised_boards += 1
                                     if self.initialised_boards == 2:
                                         self.change_turn()
                                 else:
-                                    self.p1.output_queue.put("error initialisation failed")
+                                    self.output_to(self.p1, ("error initialisation failed"))
                             else:
-                                self.p1.output_queue.put("error already initialised")
+                                self.output_to(self.p1, ("error already initialised"))
                     else:
                         if len(split_input) < NUM_SHIPS * 3 + 1:
-                            self.p2.output_queue.put("error place requires {} arguments".format(NUM_SHIPS * 3))
+                            self.output_to(self.p2, ("error place requires {} arguments".format(NUM_SHIPS * 3)))
                         else:
                             if not self.p2_board.initialised:
                                 try:
                                     func_in = [tuple(int(split_input[i]) if i % 3 != 0 else split_input[i] == 'h' for i in range(j, j+3)) for j in range(1, NUM_SHIPS * 3 + 1, 3)]
                                 except:
-                                    self.p1.output_queue.put("error cannot parse input")
+                                    self.output_to(self.p2, ("error cannot parse input"))
                                 result = self.p2_board.initialise(func_in)
                                 if result:
-                                    self.p2.output_queue.put("match ready self")
-                                    self.p1.output_queue.put("match ready opponent")
+                                    self.output_to(self.p2, ("match ready self"))
+                                    self.output_to(self.p1, ("match ready opponent"))
                                     self.initialised_boards += 1
                                     if self.initialised_boards == 2:
                                         self.change_turn()
                                 else:
-                                    self.p2.output_queue.put("error initialisation failed")
+                                    self.output_to(self.p2, ("error initialisation failed"))
                             else:
-                                self.p2.output_queue.put("error already initialised")
+                                self.output_to(self.p2, ("error already initialised"))
                 elif keyword == "guess":
                     if len(split_input) < 3:
-                        player.output_queue.put("error guess requires 3 arguments")
+                        self.output_to(player, ("error guess requires 3 arguments"))
                     elif self.game_ended:
-                        player.output_queue.put("error game has ended")
+                        self.output_to(player, ("error game has ended"))
                     elif self.initialised_boards < 2:
-                        player.output_queue.put("error both players not ready yet")
+                        self.output_to(player, ("error both players not ready yet"))
                     else:
                         try:
                             x = int(split_input[1])
                             y = int(split_input[2])
                             # oob
                             if x < 0 or y < 0 or x >= self.p1_board.height or y >= self.p1_board.width:
-                                player.output_queue.put("error out of bounds")
+                                self.output_to(player, ("error out of bounds"))
                             elif player == self.p1:
                                 if self.turn == self.p1:
                                     if self.p2_board.board[x][y].hit:
-                                        self.p1.output_queue.put("error already guessed")
+                                        self.output_to(self.p1, ("error already guessed"))
                                     else:
                                         is_boat, remaining_ships = self.p2_board.guess(x, y)
-                                        self.p1.output_queue.put("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships))
-                                        self.p2.output_queue.put("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships))
+                                        self.output_to(self.p1, ("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships)))
+                                        self.output_to(self.p2, ("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships)))
                                         if remaining_ships == 0:
-                                            self.p1.output_queue.put("match win self")
-                                            self.p2.output_queue.put("match win opponent")
+                                            self.output_to(self.p1, ("match win self"))
+                                            self.output_to(self.p2, ("match win opponent"))
                                             self.game_ended = True
                                         else:
                                             self.change_turn()
                                 else:
-                                    self.p1.output_queue.put("error not player's turn")
+                                    self.output_to(self.p1, ("error not player's turn"))
                             else: # player == self.p2
                                 if self.turn == self.p2:
                                     if self.p1_board.board[x][y].hit:
-                                        self.p2.output_queue.put("error already guessed")
+                                        self.output_to(self.p2, ("error already guessed"))
                                     else:
                                         is_boat, remaining_ships = self.p1_board.guess(x, y)
-                                        self.p2.output_queue.put("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships))
-                                        self.p1.output_queue.put("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships))
+                                        self.output_to(self.p2, ("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships)))
+                                        self.output_to(self.p1, ("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships)))
                                         if remaining_ships == 0:
-                                            self.p2.output_queue.put("match win self")
-                                            self.p1.output_queue.put("match win opponent")
+                                            self.output_to(self.p2, ("match win self"))
+                                            self.output_to(self.p1, ("match win opponent"))
                                             self.game_ended = True
                                         else:
                                             self.change_turn()
                                 else:
-                                    self.p2.output_queue.put("error not player's turn")
+                                    self.output_to(self.p2, ("error not player's turn"))
                         except ValueError:
-                            player.output_queue.put("error cannot parse input")
+                            self.output_to(player, ("error cannot parse input"))
                 elif keyword == "leave":
                     self.leave_match(player)
                 else:
-                    player.output_queue.put("error command match {} not found".format(keyword))
+                    self.output_to(player, ("error command match {} not found".format(keyword)))
 
 # board class for player boards (0-indexed, row-first)
 class Board:
