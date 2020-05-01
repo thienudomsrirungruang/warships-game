@@ -28,6 +28,9 @@ line_queue = queue.Queue()
 current_line_lock = threading.Lock()
 current_line = ""
 
+need_redraw = threading.Event()
+need_redraw.set()
+
 chat_lock = threading.Lock()
 chat_list = []
 
@@ -84,13 +87,25 @@ def start_client():
         time.sleep(.1)
 
 def redraw():
-    term_size = shutil.get_terminal_size()
-    lines = term_size.lines
-    columns = term_size.columns - 1
-    screen = [["."] * columns for _ in range(lines)]
-    draw(screen, lines, columns, 2, lines - 4, 5, columns - 10, """Lorem \nipsum \ndolor sit amet, \nconsectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Morbi tristique senectus et netus. Eget dolor morbi non arcu. Cras pulvinar mattis nunc sed blandit libero volutpat sed. A iaculis at erat pellentesque adipiscing commodo elit at. Suspendisse ultrices gravida dictum fusce ut placerat orci. Sit amet justo donec enim. Parturient montes nascetur ridiculus mus mauris. Vestibulum morbi blandit cursus risus at ultrices. At in tellus integer feugiat scelerisque varius morbi enim nunc."""\
-                                                            , alignh="m", alignv="m", padding=" ", textwrap="w")
-    sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
+    global current_line
+    while True:
+        if need_redraw.is_set():
+            need_redraw.clear()
+            term_size = shutil.get_terminal_size()
+            lines = term_size.lines
+            columns = term_size.columns - 1
+            screen = [["."] * columns for _ in range(lines)]
+            # draw(screen, lines, columns, 2, lines - 4, 5, columns - 10, """Lorem \nipsum \ndolor sit amet, \nconsectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Morbi tristique senectus et netus. Eget dolor morbi non arcu. Cras pulvinar mattis nunc sed blandit libero volutpat sed. A iaculis at erat pellentesque adipiscing commodo elit at. Suspendisse ultrices gravida dictum fusce ut placerat orci. Sit amet justo donec enim. Parturient montes nascetur ridiculus mus mauris. Vestibulum morbi blandit cursus risus at ultrices. At in tellus integer feugiat scelerisque varius morbi enim nunc."""\
+            #                                                         , alignh="r", alignv="m", padding=" ", textwrap="w")
+            current_line_lock.acquire()
+            draw(screen, lines, columns, lines - 1, 1, 0, columns, current_line, alignh="l", textwrap="n")
+            current_line_lock.release()
+            sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
+            time.sleep(.03)
+            # current_line_lock.acquire()
+            # print("hi")
+            # sys.stdout.write("{}\n".format(current_line))
+            # current_line_lock.release()
 
 # alignh : "l" for left, "m" for middle, "r" for right
 # alignv : "t" for top, "m" for middle, "b" for bottom
@@ -172,21 +187,23 @@ def listen_for_keypress():
     ignore_next = False
     while True:
         c = msvcrt.getwch()
-        # if ignore_next:
-        #     ignore_next = False
-        #     continue
-        print(ord(c))
+        if ignore_next:
+            ignore_next = False
+            continue
         current_line_lock.acquire()
         if ord(c) >= 32 and ord(c) <= 126:
             current_line += c
+            need_redraw.set()
         elif ord(c) in (0, 224):
             ignore_next = True
         elif ord(c) in (8, 127):
             if(len(current_line) > 0):
                 current_line = current_line[:-1]
+                need_redraw.set()
         elif ord(c) in (13,):
             line_queue.put(current_line)
             current_line = ""
+            need_redraw.set()
         elif ord(c) in (3,):
             exit()
         # print(current_line)
@@ -199,6 +216,7 @@ def main(server_ip, server_port):
         start_new_thread(send, (sock,))
         start_new_thread(receive, (sock,))
         start_new_thread(listen_for_keypress, ())
+        start_new_thread(redraw, ())
     except ConnectionError as e:
         print("ERROR: {}".format(e))
         exit()
@@ -206,7 +224,7 @@ def main(server_ip, server_port):
         time.sleep(.1)
 
 if __name__ == '__main__':
-    # main(SERVER_IP, SERVER_PORT)
-    redraw()
-    while True:
-        time.sleep(.1)
+    main(SERVER_IP, SERVER_PORT)
+    # redraw()
+    # while True:
+    #     time.sleep(.1)
