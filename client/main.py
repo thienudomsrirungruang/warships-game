@@ -68,6 +68,7 @@ def start_client():
                 chat_lock.acquire()
                 chat_list.append(" ".join(split_input[1:]))
                 chat_lock.release()
+                need_redraw.set()
             elif split_input[0] == "matchmake":
                 if split_input[1] == "join":
                     in_matchmaking = True
@@ -100,6 +101,9 @@ def redraw():
             current_line_lock.acquire()
             draw(screen, lines, columns, lines - 1, 1, 0, columns, current_line, alignh="l", textwrap="n")
             current_line_lock.release()
+            chat_lock.acquire()
+            draw(screen, lines, columns, 0, lines - 1, 60, columns - 60, "\n".join(chat_list), alignv="b")
+            chat_lock.release()
             sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
             time.sleep(.03)
             # current_line_lock.acquire()
@@ -159,6 +163,10 @@ def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l"
         text_lines = new_lines
     num_lines = len(text_lines)
     if num_lines >= numl:
+        if alignv == "m":
+            text_lines = text_lines[(num_lines - numl) // 2, (num_lines - numl) // 2 + numl]
+        elif alignv == "b":
+            text_lines = text_lines[-numl:]
         first_line = 0
     elif alignv == "t":
         first_line = 0
