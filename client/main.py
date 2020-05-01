@@ -81,6 +81,90 @@ def start_client():
             message = line_queue.get()
             network_output_queue.put("chat {}".format(message))
         network_queue_lock.release()
+        time.sleep(.1)
+
+def redraw():
+    term_size = shutil.get_terminal_size()
+    lines = term_size.lines
+    columns = term_size.columns - 1
+    screen = [["."] * columns for _ in range(lines)]
+    draw(screen, lines, columns, 2, lines - 4, 5, columns - 10, """Lorem \nipsum \ndolor sit amet, \nconsectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Morbi tristique senectus et netus. Eget dolor morbi non arcu. Cras pulvinar mattis nunc sed blandit libero volutpat sed. A iaculis at erat pellentesque adipiscing commodo elit at. Suspendisse ultrices gravida dictum fusce ut placerat orci. Sit amet justo donec enim. Parturient montes nascetur ridiculus mus mauris. Vestibulum morbi blandit cursus risus at ultrices. At in tellus integer feugiat scelerisque varius morbi enim nunc."""\
+                                                            , alignh="m", alignv="m", padding=" ", textwrap="w")
+    sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
+
+# alignh : "l" for left, "m" for middle, "r" for right
+# alignv : "t" for top, "m" for middle, "b" for bottom
+# textwrap: "n" for none, "w" for words, "g" for greedy
+def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l", alignv="t", padding=" ", textwrap="w"):
+    subscreen = [[padding] * numc for _ in range(numl)]
+    # print(len(subscreen), len(subscreen[0]))
+    text_lines = content.splitlines()
+    if textwrap == "g":
+        new_lines = []
+        for line in text_lines:
+            while True:
+                if(len(line) <= numc):
+                    new_lines.append(line)
+                    break
+                new_lines.append(line[:numc])
+                line = line[numc:]
+        text_lines = new_lines
+    elif textwrap == "w":
+        new_lines = []
+        for line in text_lines:
+            current_line = ""
+            words = iter(line.split(" "))
+            word = next(words, None)
+            while word is not None:
+                # check new length of line
+                if len(word) == 0:
+                    word = next(words, None)
+                elif len(word) + len(current_line) + (1 if len(current_line) > 0 else 0) <= numc:
+                    if len(current_line) == 0:
+                        current_line += word
+                    else:
+                        current_line += " " + word
+                    word = next(words, None)
+                elif len(word) > numc:
+                    cut_length = numc - len(current_line) - (1 if len(current_line) > 0 else 0)
+                    if cut_length > 0:
+                        if len(current_line) == 0:
+                            current_line += word[:cut_length]
+                        else:
+                            current_line += " " + word[:cut_length]
+                        word = word[cut_length:]
+                    else:
+                        new_lines.append(current_line)
+                        current_line = ""
+                else:
+                    new_lines.append(current_line)
+                    current_line = ""
+            if len(current_line) > 0:
+                new_lines.append(current_line)
+        text_lines = new_lines
+    num_lines = len(text_lines)
+    if num_lines >= numl:
+        first_line = 0
+    elif alignv == "t":
+        first_line = 0
+    elif alignv == "m":
+        first_line = (numl - num_lines) // 2
+    else:
+        first_line = numl - num_lines
+    for i in range(min(num_lines, numl)):
+        if alignh == "l":
+            first_col = 0
+        elif alignh == "m":
+            first_col = (numc - len(text_lines[i])) // 2
+        else:
+            first_col = numc - len(text_lines[i])
+        for j in range(len(text_lines[i])):
+            # print(first_line + i, first_col + j)
+            subscreen[first_line + i][first_col + j] = text_lines[i][j]
+    # transfer to screen
+    for line in range(numl):
+        for col in range(numc):
+            screen[startl + line][startc + col] = subscreen[line][col]
 
 
 def listen_for_keypress():
@@ -122,4 +206,7 @@ def main(server_ip, server_port):
         time.sleep(.1)
 
 if __name__ == '__main__':
-    main(SERVER_IP, SERVER_PORT)
+    # main(SERVER_IP, SERVER_PORT)
+    redraw()
+    while True:
+        time.sleep(.1)
