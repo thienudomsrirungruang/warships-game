@@ -8,6 +8,8 @@ import time
 
 import sys
 
+import msvcrt
+
 import shutil # shutil.get_terminal_size()
 
 from settings import *
@@ -21,6 +23,10 @@ NUM_SHIPS = len(SHIP_LENGTHS)
 network_queue_lock = threading.Lock()
 network_input_queue = queue.Queue()
 network_output_queue = queue.Queue()
+
+line_queue = queue.Queue()
+current_line_lock = threading.Lock()
+current_line = ""
 
 chat_lock = threading.Lock()
 chat_list = []
@@ -68,10 +74,39 @@ def start_client():
                     #TODO
                     pass
                 else:
-                    print("WARN: incorrect command {}".format(message))
+                    chat_list.append("WARN: incorrect command {}".format(message))
             else:
-                print("WARN: incorrect command {}".format(message))
+                chat_list.append("WARN: incorrect command {}".format(message))
+        while not line_queue.empty():
+            message = line_queue.get()
+            network_output_queue.put("chat {}".format(message))
         network_queue_lock.release()
+
+
+def listen_for_keypress():
+    global current_line
+    ignore_next = False
+    while True:
+        c = msvcrt.getwch()
+        # if ignore_next:
+        #     ignore_next = False
+        #     continue
+        print(ord(c))
+        current_line_lock.acquire()
+        if ord(c) >= 32 and ord(c) <= 126:
+            current_line += c
+        elif ord(c) in (0, 224):
+            ignore_next = True
+        elif ord(c) in (8, 127):
+            if(len(current_line) > 0):
+                current_line = current_line[:-1]
+        elif ord(c) in (13,):
+            line_queue.put(current_line)
+            current_line = ""
+        elif ord(c) in (3,):
+            exit()
+        # print(current_line)
+        current_line_lock.release()
 
 def main(server_ip, server_port):
     try:
@@ -79,6 +114,7 @@ def main(server_ip, server_port):
         sock.connect((server_ip, server_port))
         start_new_thread(send, (sock,))
         start_new_thread(receive, (sock,))
+        start_new_thread(listen_for_keypress, ())
     except ConnectionError as e:
         print("ERROR: {}".format(e))
         exit()
