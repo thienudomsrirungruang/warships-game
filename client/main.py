@@ -217,6 +217,7 @@ def main(server_ip, server_port):
         start_new_thread(receive, (sock,))
         start_new_thread(listen_for_keypress, ())
         start_new_thread(redraw, ())
+        start_new_thread(start_client, ())
     except ConnectionError as e:
         print("ERROR: {}".format(e))
         exit()
