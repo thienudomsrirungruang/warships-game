@@ -118,7 +118,15 @@ def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l"
     subscreen = [[padding] * numc for _ in range(numl)]
     # print(len(subscreen), len(subscreen[0]))
     text_lines = content.splitlines()
-    if textwrap == "g":
+    if textwrap == "n":
+        new_lines = []
+        for line in text_lines:
+            if len(line) > numc:
+                new_lines.append(line[:numc])
+            else:
+                new_lines.append(line)
+        text_lines = new_lines
+    elif textwrap == "g":
         new_lines = []
         for line in text_lines:
             while True:
