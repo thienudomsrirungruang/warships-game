@@ -97,7 +97,9 @@ def start_client():
                     add_to_chat("""/help - shows this message.
 /matchmake <join/leave> - joins or leaves matchmaking.""")
                 elif keyword == "matchmake":
-                    if split_input[1] == "join":
+                    if len(split_input) < 2:
+                        add_to_chat("Usage: /matchmake <join/leave>")
+                    elif split_input[1] == "join":
                         if not in_matchmaking:
                             network_output_queue.put("matchmake join")
                         else:
