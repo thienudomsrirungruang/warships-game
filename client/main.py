@@ -225,6 +225,15 @@ def listen_for_keypress():
         # print(current_line)
         current_line_lock.release()
 
+def check_for_resize():
+    term_size = shutil.get_terminal_size()
+    while True:
+        new_term_size = shutil.get_terminal_size()
+        if new_term_size != term_size:
+            term_size = new_term_size
+            need_redraw.set()
+        time.sleep(.03)
+
 def main(server_ip, server_port):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -232,6 +241,7 @@ def main(server_ip, server_port):
         start_new_thread(send, (sock,))
         start_new_thread(receive, (sock,))
         start_new_thread(listen_for_keypress, ())
+        start_new_thread(check_for_resize, ())
         start_new_thread(redraw, ())
         start_new_thread(start_client, ())
     except ConnectionError as e:
