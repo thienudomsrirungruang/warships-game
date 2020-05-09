@@ -34,6 +34,8 @@ need_redraw.set()
 chat_lock = threading.Lock()
 chat_list = []
 
+player_name = "Anonymous"
+
 def send(sock):
     try:
         while True:
@@ -63,6 +65,7 @@ def add_to_chat(message):
     need_redraw.set()
 
 def start_client():
+    global player_name
     match = None
     in_matchmaking = False
     while True:
@@ -84,6 +87,8 @@ def start_client():
                     pass
                 else:
                     add_to_chat("WARN: incorrect command {}".format(message))
+            elif split_input[0] == "name":
+                player_name = split_input[1]
             elif split_input[0] == "error":
                 add_to_chat("WARN: Error received from server: {}".format(message))
             else:
@@ -95,7 +100,8 @@ def start_client():
                 keyword = split_input[0][1:]
                 if keyword == "help":
                     add_to_chat("""/help - shows this message.
-/matchmake <join/leave> - joins or leaves matchmaking.""")
+/matchmake <join/leave> - joins or leaves matchmaking.
+/name <name> - changes your name.""")
                 elif keyword == "matchmake":
                     if len(split_input) < 2:
                         add_to_chat("Usage: /matchmake <join/leave>")
@@ -109,6 +115,16 @@ def start_client():
                             network_output_queue.put("matchmake leave")
                         else:
                             add_to_chat("You are not in matchmaking!")
+                # TODO: can only be done when not in match/matchmaking
+                elif keyword == "name":
+                    if len(split_input) < 2:
+                        add_to_chat("Usage: /name <new name>")
+                    elif split_input[1] == "":
+                        add_to_chat("Usage: /name <new name>")
+                    else:
+                        network_output_queue.put("name {}".format(split_input[1]))
+                else:
+                    add_to_chat("Command not found.")
             else:
                 network_output_queue.put("chat {}".format(message))
         network_queue_lock.release()
