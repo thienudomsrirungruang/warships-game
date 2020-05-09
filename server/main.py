@@ -35,6 +35,7 @@ class Player(object):
         # Output format: [keyword] [values...]
         # Possible keyword-value combinations:
         # chat [multi-space words]: send a message to chat
+        # name [name]: signals the player's name after joining/name change
         # matchmake join: matchmaking queue has been joined
         # matchmake leave: matchmaking queue has been left
         # matchmake match [name]: match has been found with [name]
@@ -51,10 +52,13 @@ class Player(object):
 
         # None if not in a match, Match object if in a match
         self.match = None
+
+        self.output_queue.put("name {}".format(self.name))
     
     # Input format: [keyword] [values...]
     # Possible keyword-value combinations:
     # chat [multi-space words]: send a message to chat
+    # name [name]: change name
     # matchmake join: join matchmaking queue
     # matchmake leave: leave matchmaking queue
     # match [keyword] [args...] : described in Match
@@ -63,6 +67,16 @@ class Player(object):
         keyword = split_input[0]
         if keyword == "chat":
             chat_queue.put("{}: {}".format(self.name, " ".join(split_input[1:])))
+        elif keyword == "name":
+            if len(split_input) < 2:
+                self.output_queue.put("error name requires 2 values")
+            elif len(split_input[1]) == 0:
+                self.output_queue.put("error please specify a name")
+            else:
+                old_name = self.name
+                self.name = split_input[1]
+                self.output_queue.put("name {}".format(self.name))
+                chat_queue.put("{} has changed their name to {}".format(old_name, self.name))
         elif keyword == "matchmake":
             if self.match is None:
                 if len(split_input) < 2:
