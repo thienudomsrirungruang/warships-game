@@ -56,6 +56,12 @@ def receive(sock):
         network_input_queue.put(data.decode('utf-8'))
         network_queue_lock.release()
 
+def add_to_chat(message):
+    chat_lock.acquire()
+    chat_list.append(message)
+    chat_lock.release()
+    need_redraw.set()
+
 def start_client():
     match = None
     in_matchmaking = False
@@ -65,25 +71,44 @@ def start_client():
             message = network_input_queue.get()
             split_input = message.split(" ")
             if split_input[0] == "chat":
-                chat_lock.acquire()
-                chat_list.append(" ".join(split_input[1:]))
-                chat_lock.release()
-                need_redraw.set()
+                add_to_chat(" ".join(split_input[1:]))
             elif split_input[0] == "matchmake":
                 if split_input[1] == "join":
+                    add_to_chat("Successfully joined matchmaking.")
                     in_matchmaking = True
                 elif split_input[1] == "leave":
+                    add_to_chat("Successfully left matchmaking.")
                     in_matchmaking = False
                 elif split_input[2] == "match":
                     #TODO
                     pass
                 else:
-                    chat_list.append("WARN: incorrect command {}".format(message))
+                    add_to_chat("WARN: incorrect command {}".format(message))
+            elif split_input[0] == "error":
+                add_to_chat("WARN: Error received from server: {}".format(message))
             else:
-                chat_list.append("WARN: incorrect command {}".format(message))
+                add_to_chat("WARN: incorrect command {}".format(message))
         while not line_queue.empty():
             message = line_queue.get()
-            network_output_queue.put("chat {}".format(message))
+            if message.startswith("/"):
+                split_input = message.split(" ")
+                keyword = split_input[0][1:]
+                if keyword == "help":
+                    add_to_chat("""/help - shows this message.
+/matchmake <join/leave> - joins or leaves matchmaking.""")
+                elif keyword == "matchmake":
+                    if split_input[1] == "join":
+                        if not in_matchmaking:
+                            network_output_queue.put("matchmake join")
+                        else:
+                            add_to_chat("You are already in matchmaking!")
+                    elif split_input[1] == "leave":
+                        if in_matchmaking:
+                            network_output_queue.put("matchmake leave")
+                        else:
+                            add_to_chat("You are not in matchmaking!")
+            else:
+                network_output_queue.put("chat {}".format(message))
         network_queue_lock.release()
         time.sleep(.1)
 
