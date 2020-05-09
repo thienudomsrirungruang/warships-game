@@ -124,7 +124,7 @@ def redraw():
             # draw(screen, lines, columns, 2, lines - 4, 5, columns - 10, """Lorem \nipsum \ndolor sit amet, \nconsectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Morbi tristique senectus et netus. Eget dolor morbi non arcu. Cras pulvinar mattis nunc sed blandit libero volutpat sed. A iaculis at erat pellentesque adipiscing commodo elit at. Suspendisse ultrices gravida dictum fusce ut placerat orci. Sit amet justo donec enim. Parturient montes nascetur ridiculus mus mauris. Vestibulum morbi blandit cursus risus at ultrices. At in tellus integer feugiat scelerisque varius morbi enim nunc."""\
             #                                                         , alignh="r", alignv="m", padding=" ", textwrap="w")
             current_line_lock.acquire()
-            draw(screen, lines, columns, lines - 1, 1, 0, columns, current_line, alignh="l", textwrap="n")
+            draw(screen, lines, columns, lines - 1, 1, 0, columns, current_line, alignh="l", textwrap="n", anchor="r")
             current_line_lock.release()
             chat_lock.acquire()
             draw(screen, lines, columns, 0, lines - 1, 60, columns - 60, "\n".join(chat_list), alignv="b")
@@ -139,9 +139,16 @@ def redraw():
 # alignh : "l" for left, "m" for middle, "r" for right
 # alignv : "t" for top, "m" for middle, "b" for bottom
 # textwrap: "n" for none, "w" for words, "g" for greedy
-def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l", alignv="t", padding=" ", textwrap="w"):
+# anchor: "l" for left, "r" for right
+def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l", alignv="t", padding=" ", textwrap="w", anchor="l"):
     subscreen = [[padding] * numc for _ in range(numl)]
-    # print(len(subscreen), len(subscreen[0]))
+    # reverse
+    if anchor == "r":
+        content = content[::-1]
+        if alignh == "l": alignh = "r"
+        elif alignh == "r": alignh = "l"
+        if alignv == "t": alignv = "b"
+        elif alignv == "b": alignv = "t"
     text_lines = content.splitlines()
     if textwrap == "n":
         new_lines = []
@@ -217,6 +224,12 @@ def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l"
         for j in range(len(text_lines[i])):
             # print(first_line + i, first_col + j)
             subscreen[first_line + i][first_col + j] = text_lines[i][j]
+    # reverse back
+    if anchor == "r":
+        new_subscreen = []
+        for line in subscreen[::-1]:
+            new_subscreen.append(line[::-1])
+        subscreen = new_subscreen
     # transfer to screen
     for line in range(numl):
         for col in range(numc):
