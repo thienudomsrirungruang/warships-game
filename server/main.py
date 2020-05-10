@@ -47,7 +47,6 @@ class Player(object):
         # match leave [self/opponent]: signals the match has been left
         self.output_queue = queue.Queue()
         
-        # TODO: Enter name
         self.name = "".join([random.choice(string.ascii_lowercase) for i in range(random.randint(3, 6))])
 
         # None if not in a match, Match object if in a match
