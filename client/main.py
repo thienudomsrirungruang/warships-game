@@ -1,6 +1,9 @@
 import socket
 import random
 
+import string
+import re
+
 from _thread import *
 import threading
 
@@ -34,7 +37,137 @@ need_redraw.set()
 chat_lock = threading.Lock()
 chat_list = []
 
+match = None
+
 player_name = "Anonymous"
+
+class Match:
+    def __init__(self, opponent_name):
+        self.opponent_name = opponent_name
+
+        self.player_ready = False
+        self.opponent_ready = False
+
+        self.width = 13
+        self.height = 9
+
+        self.is_turn = False
+
+        self.placement_data = [None for _ in range(NUM_SHIPS)]
+
+        self.player_board = Board(self.height, self.width)
+        self.opponent_board = Board(self.height, self.width)
+
+        self.player_ships_left = NUM_SHIPS
+        self.opponent_ships_left = NUM_SHIPS
+
+        self.match_chat = []
+    
+    def place(self, ship_id, coord_str, rotation):
+        rotation = rotation.lower()
+        coords = get_coords_from_string(coord_str, self.height, self.width)
+        if coords is None:
+            self.match_chat.append("Invalid coordinates.")
+        elif rotation not in ("horizontal", "vertical"):
+            self.match_chat.append("Rotation should either be horizontal or vertical.")
+        elif self.placement_data[ship_id] is not None:
+            self.match_chat.append("Ship already placed.")
+        else:
+            placement_data = ShipPlacementData(*coords, rotation[0])
+            result = self.player_board.place_ship(ship_id, placement_data)
+            if result:
+                self.placement_data[ship_id] = placement_data
+                self.match_chat.append("Ship successfully placed.")
+            else:
+                self.match_chat.append("Placement failed - check your coordinates again.")
+    
+    def handle_input(self, input_line):
+        if not self.player_board.initialised:
+            split_input = input_line.split(" ")
+            if split_input[0] == "confirm":
+                # TODO
+                pass
+            elif len(split_input) < 3:
+                self.match_chat.append("Please either type \'confirm\' or a placement described above.")
+            else:
+                if split_input[0].isdigit() and split_input[2] in ("horizontal", "vertical"):
+                    self.place(int(split_input[0]), split_input[1], split_input[2])
+                else:
+                    self.match_chat.append("Invalid placement.")
+        else:
+            # TODO
+            pass
+        need_redraw.set()
+    
+    # returns a 30-ishx29 string corresponding to the game window.
+    def get_string(self):
+        global player_name
+        output_string = ""
+        output_string += "{0:<14} {1:>14}\n".format(player_name if len(player_name) <= 14 else player_name[:14], self.opponent_name if len(self.opponent_name) <= 14 else self.opponent_name[:14])
+        return output_string
+
+class ShipPlacementData:
+    def __init__(self, x, y, rotation):
+        self.x = x
+        self.y = y
+        self.rotation = rotation
+    
+    def __str__(self):
+        return "{} {} {}".format(self.x, self.y, self.rotation)
+
+
+class Board:
+    def __init__(self, height=9, width=13):
+        self.height = height
+        self.width = width
+        self.remaining_ships = NUM_SHIPS
+        self.board = [[Cell(self, i, j, -1, False) for j in range(self.width)] for i in range(self.height)]
+        self.initialised = False
+        
+    # semi-recycled from server code
+    def place_ship(self, number, ship_placement_data):
+        ship_length = SHIP_LENGTHS[number]
+        x = ship_placement_data.x
+        y = ship_placement_data.y
+        rotation = ship_placement_data.rotation == "h"
+        # check oob
+        if x < 0 or y < 0 or (rotation and (x >= self.height or y > self.width - ship_length)) or (not rotation and (x > self.height - ship_length or y >= self.width)):
+            return False
+        if rotation:
+            for j in range(y, y + ship_length):
+                # check if occupied
+                if self.board[x][j].boat != -1:
+                    return False
+            for j in range(y, y + ship_length):
+                self.board[x][j].boat = number
+        else:
+            for j in range(x, x + ship_length):
+                if self.board[j][y].boat != -1:
+                    return False
+            for j in range(x, x + ship_length):
+                self.board[j][y].boat = number
+        return True
+
+class Cell:
+    def __init__(self, board, x, y, boat, hit):
+        self.board = board
+        self.x = x
+        self.y = y
+        self.boat = boat
+        self.hit = hit
+
+
+# Gets coords from <letter><number>. A1 is bottom left or (0, 0).
+# Chess order, so ABC... are columns and 123... are rows.
+def get_coords_from_string(s, height, width):
+    s = s.lower()
+    if not re.fullmatch(r"[a-z]\d+", s):
+        return None
+    x = height - int(s[1:])
+    y = string.ascii_lowercase.index(s[0])
+    if 0 <= x < height and 0 <= y < width:
+        return x, y
+    return None
 
 def send(sock):
     try:
@@ -65,8 +198,8 @@ def add_to_chat(message):
     need_redraw.set()
 
 def start_client():
+    global match
     global player_name
-    match = None
     in_matchmaking = False
     while True:
         network_queue_lock.acquire()
@@ -82,9 +215,9 @@ def start_client():
                 elif split_input[1] == "leave":
                     add_to_chat("Successfully left matchmaking.")
                     in_matchmaking = False
-                elif split_input[2] == "match":
-                    #TODO
-                    pass
+                elif split_input[1] == "match":
+                    add_to_chat("A match has been found with {}".format(split_input[2]))
+                    match = Match(split_input[2])
                 else:
                     add_to_chat("WARN: incorrect command {}".format(message))
             elif split_input[0] == "name":
@@ -126,7 +259,10 @@ def start_client():
                 else:
                     add_to_chat("Command not found.")
             else:
-                network_output_queue.put("chat {}".format(message))
+                if match is None:
+                    network_output_queue.put("chat {}".format(message))
+                else:
+                    match.handle_input(message)
         network_queue_lock.release()
         time.sleep(.1)
 
@@ -147,6 +283,9 @@ def redraw():
             chat_lock.acquire()
             draw(screen, lines, columns, 0, lines - 1, 60, columns - 60, "\n".join(chat_list), alignv="b")
             chat_lock.release()
+            if match is not None:
+                draw(screen, lines, columns, 0, 20, 0, 29, match.get_string(), textwrap="n")
+                draw(screen, lines, columns, 20, lines - 21, 0, 59, "\n".join(match.match_chat), alignv="b")
             sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
             time.sleep(.03)
             # current_line_lock.acquire()
