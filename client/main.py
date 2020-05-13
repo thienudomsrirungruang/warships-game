@@ -157,7 +157,7 @@ class Cell:
         self.hit = hit
 
 
-# Gets coords from <letter><number>. A1 is bottom left or (0, 0).
+# Gets coords from <letter><number>. A1 is bottom left or (0, (height)-1).
 # Chess order, so ABC... are columns and 123... are rows.
 def get_coords_from_string(s, height, width):
     s = s.lower()
