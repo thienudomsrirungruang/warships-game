@@ -417,7 +417,6 @@ def listen_for_keypress():
             need_redraw.set()
         elif ord(c) in (3,):
             exit()
-        # print(current_line)
         current_line_lock.release()
 
 def check_for_resize():
@@ -447,6 +446,3 @@ def main(server_ip, server_port):
 
 if __name__ == '__main__':
     main(SERVER_IP, SERVER_PORT)
-    # redraw()
-    # while True:
-    #     time.sleep(.1)
