@@ -100,11 +100,15 @@ class Match:
         need_redraw.set()
     
     # returns a 30-ishx29 string corresponding to the game window.
-    def get_string(self):
+    def get_string(self, width=29):
         global player_name
-        output_string = ""
-        output_string += "{0:<14} {1:>14}\n".format(player_name if len(player_name) <= 14 else player_name[:14], self.opponent_name if len(self.opponent_name) <= 14 else self.opponent_name[:14])
-        return output_string
+        out = ""
+        out += ("{0:<" + str(width // 2) + "} {1:>" + str(width // 2) + "}\n").format(\
+                    player_name if len(player_name) <= width // 2 else player_name[:width // 2], \
+                    self.opponent_name if len(self.opponent_name) <= width // 2 else self.opponent_name[:width // 2])
+        out += " " * width + "\n" # TODO: hit counters
+        out += self.player_board.get_board_string(True)
+        return out
 
 class ShipPlacementData:
     def __init__(self, x, y, rotation):
@@ -148,6 +152,53 @@ class Board:
                 self.board[j][y].boat = number
         return True
 
+    def get_board_string(self, is_self, show_coords=True, show_types=True, hitmarker="x", missmarker="o", unknownmarker=".", padding=" ", hspacing=1, vspacing=0, lpadding=1, rpadding=1):
+        out = ""
+        width = (2 if show_coords else 0) + self.width + (self.width - 1) * hspacing + lpadding + rpadding
+        for i in range(self.height):
+            row_number = self.height - i
+            row = " " * (lpadding - len(str(row_number)) + 1 if show_types else lpadding)
+            if show_coords:
+                row += str(row_number) + " " * hspacing
+            for j in range(self.width):
+                cell = self.board[i][j]
+                if is_self:
+                    if cell.hit:
+                        if cell.boat != -1:
+                            row += hitmarker
+                        else: # no boat
+                            row += missmarker
+                    else:
+                        if show_types and cell.boat != -1:
+                            row += string.ascii_uppercase[cell.boat]
+                        else:
+                            row += unknownmarker
+                else: # opponent board
+                    if cell.hit == -1:
+                        row += unknownmarker
+                    elif cell.hit == 0:
+                        row += missmarker
+                    else: # == 1
+                        row += hitmarker
+                # add spacing if needed
+                if j != self.width - 1:
+                    row += " " * hspacing
+            row += " " * rpadding
+            out += row + "\n"
+            #add padding if needed
+            if i != self.height - 1:
+                for j in range(vspacing):
+                    out += " " * width + "\n"
+        if show_coords:
+            out += " " * (lpadding + 1)
+            for i in range(self.width):
+                out += " " * hspacing
+                out += string.ascii_lowercase[i]
+        return out
+
+# hit:
+# for player's board, -1 for no boat, others for index
+# for opponent's board, -1 for unknown, 0 for miss, 1 for hit
 class Cell:
     def __init__(self, board, x, y, boat, hit):
         self.board = board
