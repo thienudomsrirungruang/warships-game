@@ -79,6 +79,15 @@ class Match:
             else:
                 self.match_chat.append("Placement failed - check your coordinates again.")
     
+    def ready(self, is_self):
+        if is_self:
+            self.player_ready = True
+            self.match_chat.append("You are ready!")
+        else:
+            self.opponent_ready = True
+            self.match_chat.append("Your opponent is ready!")
+        need_redraw.set()
+
     def handle_input(self, input_line):
         if not self.player_board.initialised:
             split_input = input_line.split(" ")
@@ -277,6 +286,12 @@ def start_client():
                     add_to_chat("WARN: incorrect command {}".format(message))
             elif split_input[0] == "name":
                 player_name = split_input[1]
+            elif split_input[0] == "match":
+                if match is None:
+                    add_to_chat("WARN: Match command recieved without a match: {} - ignoring".format(message))
+                else:
+                    if split_input[1] == "ready":
+                        match.ready(split_input[2] == "self")
             elif split_input[0] == "error":
                 add_to_chat("WARN: Error received from server: {}".format(message))
             else:
