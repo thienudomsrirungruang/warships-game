@@ -292,6 +292,8 @@ def start_client():
                 else:
                     if split_input[1] == "ready":
                         match.ready(split_input[2] == "self")
+                    else:
+                        add_to_chat("WARN: incorrect command {}".format(message))
             elif split_input[0] == "error":
                 add_to_chat("WARN: Error received from server: {}".format(message))
             else:
