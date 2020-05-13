@@ -68,8 +68,6 @@ class Match:
         coords = get_coords_from_string(coord_str, self.height, self.width)
         if coords is None:
             self.match_chat.append("Invalid coordinates.")
-        elif rotation not in ("horizontal", "vertical"):
-            self.match_chat.append("Rotation should either be horizontal or vertical.")
         elif self.placement_data[ship_id] is not None:
             self.match_chat.append("Ship already placed.")
         else:
@@ -85,13 +83,15 @@ class Match:
         if not self.player_board.initialised:
             split_input = input_line.split(" ")
             if split_input[0] == "confirm":
-                # TODO
-                pass
+                if self.placement_data.count(None) > 0:
+                    self.match_chat.append("Please place all your ships before confirming.")
+                else:
+                    network_output_queue.put("match place {}".format(" ".join(map(str, self.placement_data))))
             elif len(split_input) < 3:
                 self.match_chat.append("Please either type \'confirm\' or a placement described above.")
             else:
-                if split_input[0].isdigit() and split_input[2] in ("horizontal", "vertical"):
-                    self.place(int(split_input[0]), split_input[1], split_input[2])
+                if split_input[0].lower() in list(string.ascii_lowercase[:NUM_SHIPS]) and split_input[2] in ("horizontal", "vertical", "h", "v"):
+                    self.place(string.ascii_lowercase.index(split_input[0].lower()), split_input[1], split_input[2])
                 else:
                     self.match_chat.append("Invalid placement.")
         else:
