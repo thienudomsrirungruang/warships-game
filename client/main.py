@@ -99,16 +99,20 @@ class Match:
             pass
         need_redraw.set()
     
-    # returns a 30-ishx29 string corresponding to the game window.
-    def get_string(self, width=29):
+    # returns a 30-ishx59 string corresponding to the game window.
+    def get_string(self, width=59, height=29):
         global player_name
-        out = ""
-        out += ("{0:<" + str(width // 2) + "} {1:>" + str(width // 2) + "}\n").format(\
+        # draws a window, which is then drawn to the screen.
+        window = [[" "] * width for _ in range(height)]
+        names = ("{0:<" + str(width // 2) + "} {1:>" + str(width // 2) + "}\n").format(\
                     player_name if len(player_name) <= width // 2 else player_name[:width // 2], \
                     self.opponent_name if len(self.opponent_name) <= width // 2 else self.opponent_name[:width // 2])
-        out += " " * width + "\n" # TODO: hit counters
-        out += self.player_board.get_board_string(True)
-        return out
+        draw(window, height, width, 0, 1, 0, width, names, textwrap="n")
+        self_board_string = self.player_board.get_board_string(True, lpadding=0, rpadding=0)
+        draw(window, height, width, 2, self.height + 1, 1, self.width * 2 + 1, self_board_string, textwrap="n")
+        opponent_board_string = self.opponent_board.get_board_string(False, lpadding=0, rpadding=0)
+        draw(window, height, width, 2, self.height + 1, self.width * 2 + 4, self.width * 2 + 1, opponent_board_string, textwrap="n")
+        return "\n".join(["".join(_) for _ in window])
 
 class ShipPlacementData:
     def __init__(self, x, y, rotation):
@@ -174,9 +178,9 @@ class Board:
                         else:
                             row += unknownmarker
                 else: # opponent board
-                    if cell.hit == -1:
+                    if cell.boat == -1:
                         row += unknownmarker
-                    elif cell.hit == 0:
+                    elif cell.boat == 0:
                         row += missmarker
                     else: # == 1
                         row += hitmarker
@@ -335,8 +339,8 @@ def redraw():
             draw(screen, lines, columns, 0, lines - 1, 60, columns - 60, "\n".join(chat_list), alignv="b")
             chat_lock.release()
             if match is not None:
-                draw(screen, lines, columns, 0, 20, 0, 29, match.get_string(), textwrap="n")
-                draw(screen, lines, columns, 20, lines - 21, 0, 59, "\n".join(match.match_chat), alignv="b")
+                draw(screen, lines, columns, 0, 29, 0, 59, match.get_string(), textwrap="n")
+                draw(screen, lines, columns, 30, lines - 31, 0, 59, "\n".join(match.match_chat), alignv="b")
             sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
             time.sleep(.03)
             # current_line_lock.acquire()
