@@ -88,14 +88,37 @@ class Match:
             self.match_chat.append("Your opponent is ready!")
         need_redraw.set()
 
+    def set_turn(self, is_turn):
+        if is_turn:
+            self.match_chat.append("It is now your turn!")
+        else:
+            self.match_chat.append("It is now your opponent's turn!")
+        self.is_turn = is_turn
+        need_redraw.set()
+
+    def confirm_self_guess(self, x, y, is_hit, remaining_ships):
+        self.opponent_board.board[x][y].boat = bool(is_hit)
+        self.opponent_board.board[x][y].hit = True
+        self.player_ships_left = remaining_ships
+        self.match_chat.append("Your guess at {} has {}!".format(get_string_from_coords(x, y, self.height, self.width), "hit" if is_hit else "missed"))
+        need_redraw.set()
+
+    def confirm_opponent_guess(self, x, y, is_hit, remaining_ships):
+        self.player_board.board[x][y].hit = True
+        self.opponent_ships_left = remaining_ships
+        self.match_chat.append("Your opponent's guess at {} has {}!".format(get_string_from_coords(x, y, self.height, self.width), "hit" if is_hit else "missed"))
+        need_redraw.set()
+
     def handle_input(self, input_line):
-        if not self.player_board.initialised:
+        if not self.player_ready:
             split_input = input_line.split(" ")
             if split_input[0] == "confirm":
                 if self.placement_data.count(None) > 0:
                     self.match_chat.append("Please place all your ships before confirming.")
                 else:
+                    network_queue_lock.acquire()
                     network_output_queue.put("match place {}".format(" ".join(map(str, self.placement_data))))
+                    network_queue_lock.release()
             elif len(split_input) < 3:
                 self.match_chat.append("Please either type \'confirm\' or a placement described above.")
             else:
@@ -103,9 +126,19 @@ class Match:
                     self.place(string.ascii_lowercase.index(split_input[0].lower()), split_input[1], split_input[2])
                 else:
                     self.match_chat.append("Invalid placement.")
+        elif self.player_ready and self.opponent_ready:
+            if self.is_turn:
+                guess = get_coords_from_string(input_line, self.height, self.width)
+                if guess is None:
+                    self.match_chat.append("Invalid guess. Please try again.")
+                else:
+                    network_queue_lock.acquire()
+                    network_output_queue.put("match guess {} {}".format(guess[0], guess[1]))
+                    network_queue_lock.release()
+            else:
+                self.match_chat.append("Please wait until it is your turn.")
         else:
-            # TODO
-            pass
+            self.match_chat.append("Please wait for your opponent to be ready.")
         need_redraw.set()
     
     # returns a 30-ishx59 string corresponding to the game window.
@@ -117,10 +150,23 @@ class Match:
                     player_name if len(player_name) <= width // 2 else player_name[:width // 2], \
                     self.opponent_name if len(self.opponent_name) <= width // 2 else self.opponent_name[:width // 2])
         draw(window, height, width, 0, 1, 0, width, names, textwrap="n")
+        if self.player_ready and self.opponent_ready:
+            player_ships_left = "o" * self.player_ships_left + "x" * (NUM_SHIPS - self.player_ships_left)
+            opponent_ships_left = "x" * (NUM_SHIPS - self.opponent_ships_left) + "o" * self.opponent_ships_left
+            ships_left_line = ("{0:<" + str(width // 2) + "} {1:>" + str(width // 2) + "}\n").format(player_ships_left, opponent_ships_left)
+            draw(window, height, width, 1, 1, 0, width, ships_left_line, textwrap="n")
+            if self.is_turn:
+                draw(window, height, width, 2, 1, 0, width, "Your turn", textwrap="n", alignh="l")
+            else:
+                draw(window, height, width, 2, 1, 0, width, "Opponent's turn", textwrap="n", alignh="r")
+        else:
+            context_line = ("{0:<" + str(width // 2) + "} {1:>" + str(width // 2) + "}\n").format(\
+                        "Ready" if self.player_ready else "Not ready", "Ready" if self.opponent_ready else "Not ready")
+            draw(window, height, width, 1, 1, 0, width, context_line, textwrap="n")
         self_board_string = self.player_board.get_board_string(True, lpadding=0, rpadding=0)
-        draw(window, height, width, 2, self.height + 1, 1, self.width * 2 + 1, self_board_string, textwrap="n")
+        draw(window, height, width, 3, self.height + 1, 1, self.width * 2 + 1, self_board_string, textwrap="n")
         opponent_board_string = self.opponent_board.get_board_string(False, lpadding=0, rpadding=0)
-        draw(window, height, width, 2, self.height + 1, self.width * 2 + 4, self.width * 2 + 1, opponent_board_string, textwrap="n")
+        draw(window, height, width, 3, self.height + 1, self.width * 2 + 4, self.width * 2 + 1, opponent_board_string, textwrap="n")
         return "\n".join(["".join(_) for _ in window])
 
 class ShipPlacementData:
@@ -223,6 +269,7 @@ class Cell:
 
 # Gets coords from <letter><number>. A1 is bottom left or (0, (height)-1).
 # Chess order, so ABC... are columns and 123... are rows.
+# Returns None if validation fails.
 def get_coords_from_string(s, height, width):
     s = s.lower()
     if not re.fullmatch(r"[a-z]\d+", s):
@@ -232,6 +279,10 @@ def get_coords_from_string(s, height, width):
     if 0 <= x < height and 0 <= y < width:
         return x, y
     return None
+
+# inverse of get_coords_from_string. No validation.
+def get_string_from_coords(x, y, height, width):
+    return string.ascii_uppercase[y] + str(height - x)
 
 def send(sock):
     try:
@@ -292,6 +343,13 @@ def start_client():
                 else:
                     if split_input[1] == "ready":
                         match.ready(split_input[2] == "self")
+                    elif split_input[1] == "turn":
+                        match.set_turn(split_input[2] == "self")
+                    elif split_input[1] == "guess":
+                        if split_input[2] == "self":
+                            match.confirm_self_guess(int(split_input[3]), int(split_input[4]), split_input[5] == "hit", int(split_input[6]))
+                        else: # opponent
+                            match.confirm_opponent_guess(int(split_input[3]), int(split_input[4]), split_input[5] == "hit", int(split_input[6]))
                     else:
                         add_to_chat("WARN: incorrect command {}".format(message))
             elif split_input[0] == "error":
@@ -334,7 +392,9 @@ def start_client():
                 if match is None:
                     network_output_queue.put("chat {}".format(message))
                 else:
+                    network_queue_lock.release()
                     match.handle_input(message)
+                    network_queue_lock.acquire()
         network_queue_lock.release()
         time.sleep(.1)
 
