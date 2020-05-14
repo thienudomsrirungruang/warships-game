@@ -331,6 +331,7 @@ def start_client():
                     add_to_chat("Successfully left matchmaking.")
                     in_matchmaking = False
                 elif split_input[1] == "match":
+                    in_matchmaking = False
                     add_to_chat("A match has been found with {}".format(split_input[2]))
                     match = Match(split_input[2])
                 else:
@@ -369,10 +370,10 @@ def start_client():
                     if len(split_input) < 2:
                         add_to_chat("Usage: /matchmake <join/leave>")
                     elif split_input[1] == "join":
-                        if not in_matchmaking:
+                        if not in_matchmaking and match is None:
                             network_output_queue.put("matchmake join")
                         else:
-                            add_to_chat("You are already in matchmaking!")
+                            add_to_chat("You are already in matchmaking, or in a match!")
                     elif split_input[1] == "leave":
                         if in_matchmaking:
                             network_output_queue.put("matchmake leave")
