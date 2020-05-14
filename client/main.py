@@ -48,6 +48,8 @@ class Match:
         self.player_ready = False
         self.opponent_ready = False
 
+        self.end = False
+
         self.width = 13
         self.height = 9
 
@@ -107,6 +109,16 @@ class Match:
         self.player_board.board[x][y].hit = True
         self.opponent_ships_left = remaining_ships
         self.match_chat.append("Your opponent's guess at {} has {}!".format(get_string_from_coords(x, y, self.height, self.width), "hit" if is_hit else "missed"))
+        need_redraw.set()
+
+    def win(self, is_self):
+        self.match_chat.append("You have {} the match!".format("won" if is_self else "lost"))
+        self.match_chat.append("The match is now over. Use '/match leave' to leave the match.")
+        self.end = True
+        need_redraw.set()
+
+    def opponent_leave(self):
+        self.match_chat.append("Your opponent has left the match.")
         need_redraw.set()
 
     def handle_input(self, input_line):
@@ -351,6 +363,14 @@ def start_client():
                             match.confirm_self_guess(int(split_input[3]), int(split_input[4]), split_input[5] == "hit", int(split_input[6]))
                         else: # opponent
                             match.confirm_opponent_guess(int(split_input[3]), int(split_input[4]), split_input[5] == "hit", int(split_input[6]))
+                    elif split_input[1] == "win":
+                        match.win(split_input[2] == "self")
+                    elif split_input[1] == "leave":
+                        if split_input[2] == "self":
+                            add_to_chat("Successfully left the match.")
+                            match = None
+                        else:
+                            match.opponent_leave()
                     else:
                         add_to_chat("WARN: incorrect command {}".format(message))
             elif split_input[0] == "error":
@@ -365,7 +385,9 @@ def start_client():
                 if keyword == "help":
                     add_to_chat("""/help - shows this message.
 /matchmake <join/leave> - joins or leaves matchmaking.
-/name <name> - changes your name.""")
+/name <name> - changes your name.
+/match leave - leaves the match, if there is one going on.
+/chat <message> - chat when in a match.""")
                 elif keyword == "matchmake":
                     if len(split_input) < 2:
                         add_to_chat("Usage: /matchmake <join/leave>")
@@ -387,11 +409,28 @@ def start_client():
                         add_to_chat("Usage: /name <new name>")
                     else:
                         network_output_queue.put("name {}".format(split_input[1]))
+                elif keyword == "match":
+                    if match is None:
+                        add_to_chat("You are not in a match.")
+                    elif len(split_input) < 2:
+                        add_to_chat("Usage: /match leave")
+                    elif split_input[1] == "leave":
+                        network_output_queue.put("match leave")
+                    else:
+                        add_to_chat("Usage: /match leave")
+                elif keyword == "chat":
+                    if len(split_input) < 2:
+                        add_to_chat("Usage: /chat <message>")
+                    elif split_input[1] == "":
+                        add_to_chat("Usage: /chat <message>")
+                    else:
+                        network_output_queue.put("chat {}".format(" ".join(split_input[1:])))
                 else:
                     add_to_chat("Command not found.")
             else:
                 if match is None:
-                    network_output_queue.put("chat {}".format(message))
+                    if len(message) > 0:
+                        network_output_queue.put("chat {}".format(message))
                 else:
                     network_queue_lock.release()
                     match.handle_input(message)
