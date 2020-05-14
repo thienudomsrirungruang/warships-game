@@ -184,7 +184,27 @@ class Match:
         draw(window, height, width, 3, self.height + 1, 1, self.width * 2 + 1, self_board_string, textwrap="n")
         opponent_board_string = self.opponent_board.get_board_string(False, lpadding=0, rpadding=0)
         draw(window, height, width, 3, self.height + 1, self.width * 2 + 4, self.width * 2 + 1, opponent_board_string, textwrap="n")
+        if self.player_ready and self.opponent_ready:
+            explain_text = "Both players are ready, so the guessing phase begins! When it is your turn, write down a square. You'll see if it was a hit or a miss. A ship is sunk if all of its squares are hit! Be the first to sink your opponent's ships to win.\nTurn indicators can be found at the top. The number of o-s below your name represent how many ships you have yet to sink.\nAn x means that square hit something, an o means it missed.\nDon't forget, you're attacking the right-side grid and your opponent is attacking the left side."
+            draw(window, height, width, self.height + 5, height - self.height - 5, 1, width - 2, explain_text)
+        else:
+            draw(window, height, width, self.height + 5, NUM_SHIPS + 4, 2, 26, self.get_placement_table(), textwrap="n")
+            explain_text = "Welcome to Warships! You are on the left, and your opponent is on the right. Please place your ships on your board on the left, while your opponent places theirs. The box on the bottom is the match chat."
+            draw(window, height, width, self.height + 5, 9, 30, width - 31, explain_text)
+            command_explain_text = "To place a ship, specify the letter, top left corner, and direction. For example, if you want to place ship B horizontally with top left corner B4, type:\nB B4 horizontal\nOther examples: c c2 vertical, E L1 v\nOnce you're done, type 'confirm' to ready up."
+            draw(window, height, width, self.height + 14, height - self.height - 14, 1, width - 2, command_explain_text)
         return "\n".join(["".join(_) for _ in window])
+
+    # just for output: (NUM_SHIPS + 4) * 26
+    def get_placement_table(self):
+        out = ""
+        out += "|------|--------|--------|\n"
+        out += "| Ship | Length | Placed |\n"
+        out += "|------|--------|--------|\n"
+        for i in range(NUM_SHIPS):
+            out += "|{0:^6}|{1:^8}|{2:^8}|\n".format(string.ascii_uppercase[i], SHIP_LENGTHS[i], "No" if self.placement_data[i] is None else "Yes")
+        out += "|------|--------|--------|"
+        return out
 
 class ShipPlacementData:
     def __init__(self, x, y, rotation):
