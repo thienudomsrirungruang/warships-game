@@ -41,7 +41,7 @@ class Player(object):
         # matchmake match [name]: match has been found with [name]
         # error [message]: error
         # match ready [self/opponent]: confirmation that you/opponent is ready
-        # match guess self [hit/miss] [num_ships]: after a guess, shows whether it was successful or not.
+        # match guess self [x] [y] [hit/miss] [num_ships]: after a guess, shows location, and whether it was successful or not.
         # match guess opponent [x] [y] [hit/miss] [num_ships]: after an opponent guess, shows location, and whether it was successful or not
         # match win [self/opponent]: signals a win
         # match leave [self/opponent]: signals the match has been left
@@ -243,7 +243,7 @@ class Match:
                                         self.output_to(self.p1, ("error already guessed"))
                                     else:
                                         is_boat, remaining_ships = self.p2_board.guess(x, y)
-                                        self.output_to(self.p1, ("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships)))
+                                        self.output_to(self.p1, ("match guess self {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships)))
                                         self.output_to(self.p2, ("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships)))
                                         if remaining_ships == 0:
                                             self.output_to(self.p1, ("match win self"))
@@ -259,7 +259,7 @@ class Match:
                                         self.output_to(self.p2, ("error already guessed"))
                                     else:
                                         is_boat, remaining_ships = self.p1_board.guess(x, y)
-                                        self.output_to(self.p2, ("match guess self {} {}".format("hit" if is_boat else "miss", remaining_ships)))
+                                        self.output_to(self.p2, ("match guess self {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships)))
                                         self.output_to(self.p1, ("match guess opponent {} {} {} {}".format(x, y, "hit" if is_boat else "miss", remaining_ships)))
                                         if remaining_ships == 0:
                                             self.output_to(self.p2, ("match win self"))
