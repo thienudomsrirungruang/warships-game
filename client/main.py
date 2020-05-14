@@ -146,7 +146,7 @@ class Match:
                 if guess is None:
                     self.match_chat.append("Invalid guess. Please try again.")
                 else:
-                    if self.opponent_board.board[x][y].hit:
+                    if self.opponent_board.board[guess[0]][guess[1]].hit:
                         self.match_chat.append("You have already guessed this square. Please try again.")
                     else:
                         network_queue_lock.acquire()
