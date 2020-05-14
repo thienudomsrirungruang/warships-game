@@ -122,7 +122,9 @@ class Match:
         need_redraw.set()
 
     def handle_input(self, input_line):
-        if not self.player_ready:
+        if self.end:
+            self.match_chat.append("The game has ended. Please use '/match leave' to leave the game.")
+        elif not self.player_ready:
             split_input = input_line.split(" ")
             if split_input[0] == "confirm":
                 if self.placement_data.count(None) > 0:
