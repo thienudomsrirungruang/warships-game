@@ -146,9 +146,12 @@ class Match:
                 if guess is None:
                     self.match_chat.append("Invalid guess. Please try again.")
                 else:
-                    network_queue_lock.acquire()
-                    network_output_queue.put("match guess {} {}".format(guess[0], guess[1]))
-                    network_queue_lock.release()
+                    if self.opponent_board.board[x][y].hit:
+                        self.match_chat.append("You have already guessed this square. Please try again.")
+                    else:
+                        network_queue_lock.acquire()
+                        network_output_queue.put("match guess {} {}".format(guess[0], guess[1]))
+                        network_queue_lock.release()
             else:
                 self.match_chat.append("Please wait until it is your turn.")
         else:
