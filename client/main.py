@@ -483,6 +483,9 @@ def redraw():
             if match is not None:
                 draw(screen, lines, columns, 0, 29, 0, 59, match.get_string(), textwrap="n")
                 draw(screen, lines, columns, 30, lines - 31, 0, 59, "\n".join(match.match_chat), alignv="b")
+            else:
+                message = "Welcome to Warships!\nType anything to chat on the right.\n/matchmake join to join a match\n/name <name> to change your name\n/help for other commands"
+                draw(screen, lines, columns, 1, lines - 3, 2, 59-4, message, alignh="l", alignv="m", textwrap="w")
             sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
             time.sleep(.03)
             # current_line_lock.acquire()
