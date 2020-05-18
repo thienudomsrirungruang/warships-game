@@ -23,6 +23,10 @@ import queue
 SHIP_LENGTHS = (5, 4, 3, 3, 2)
 NUM_SHIPS = len(SHIP_LENGTHS)
 
+MINIMUM_TERMINAL_SIZE = (90, 35)
+
+allow_keypress = False
+
 network_queue_lock = threading.Lock()
 network_input_queue = queue.Queue()
 network_output_queue = queue.Queue()
@@ -465,6 +469,7 @@ def start_client():
 
 def redraw():
     global current_line
+    global allow_keypress
     while True:
         if need_redraw.is_set():
             need_redraw.clear()
@@ -474,18 +479,24 @@ def redraw():
             screen = [["."] * columns for _ in range(lines)]
             # draw(screen, lines, columns, 2, lines - 4, 5, columns - 10, """Lorem \nipsum \ndolor sit amet, \nconsectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Morbi tristique senectus et netus. Eget dolor morbi non arcu. Cras pulvinar mattis nunc sed blandit libero volutpat sed. A iaculis at erat pellentesque adipiscing commodo elit at. Suspendisse ultrices gravida dictum fusce ut placerat orci. Sit amet justo donec enim. Parturient montes nascetur ridiculus mus mauris. Vestibulum morbi blandit cursus risus at ultrices. At in tellus integer feugiat scelerisque varius morbi enim nunc."""\
             #                                                         , alignh="r", alignv="m", padding=" ", textwrap="w")
-            current_line_lock.acquire()
-            draw(screen, lines, columns, lines - 1, 1, 0, columns, current_line, alignh="l", textwrap="n", anchor="r")
-            current_line_lock.release()
-            chat_lock.acquire()
-            draw(screen, lines, columns, 0, lines - 1, 60, columns - 60, "\n".join(chat_list), alignv="b")
-            chat_lock.release()
-            if match is not None:
-                draw(screen, lines, columns, 0, 29, 0, 59, match.get_string(), textwrap="n")
-                draw(screen, lines, columns, 30, lines - 31, 0, 59, "\n".join(match.match_chat), alignv="b")
+            if lines < MINIMUM_TERMINAL_SIZE[1] or columns < MINIMUM_TERMINAL_SIZE[0]:
+                allow_keypress = False
+                message = "Your terminal is too small to display the game! Please resize it.\nMinimum size: ({}, {})\nCurrent size: ({}, {})".format(MINIMUM_TERMINAL_SIZE[1], MINIMUM_TERMINAL_SIZE[0], lines, columns)
+                draw(screen, lines, columns, 0, lines, 0, columns, message, alignh="m", alignv="m", textwrap="w")
             else:
-                message = "Welcome to Warships!\nType anything to chat on the right.\n/matchmake join to join a match\n/name <name> to change your name\n/help for other commands"
-                draw(screen, lines, columns, 1, lines - 3, 2, 59-4, message, alignh="l", alignv="m", textwrap="w")
+                allow_keypress = True
+                current_line_lock.acquire()
+                draw(screen, lines, columns, lines - 1, 1, 0, columns, current_line, alignh="l", textwrap="n", anchor="r")
+                current_line_lock.release()
+                chat_lock.acquire()
+                draw(screen, lines, columns, 0, lines - 1, 60, columns - 60, "\n".join(chat_list), alignv="b")
+                chat_lock.release()
+                if match is not None:
+                    draw(screen, lines, columns, 0, 29, 0, 59, match.get_string(), textwrap="n")
+                    draw(screen, lines, columns, 30, lines - 31, 0, 59, "\n".join(match.match_chat), alignv="b")
+                else:
+                    message = "Welcome to Warships!\nType anything to chat on the right.\n/matchmake join to join a match\n/name <name> to change your name\n/help for other commands"
+                    draw(screen, lines, columns, 1, lines - 3, 2, 59-4, message, alignh="l", alignv="m", textwrap="w")
             sys.stdout.write("\n" + "\n".join(["".join(_) for _ in screen]))
             time.sleep(.03)
             # current_line_lock.acquire()
@@ -595,9 +606,12 @@ def draw(screen, lines, columns, startl, numl, startc, numc, content, alignh="l"
 
 def listen_for_keypress():
     global current_line
+    global allow_keypress
     ignore_next = False
     while True:
         c = msvcrt.getwch()
+        if not allow_keypress:
+            continue
         if ignore_next:
             ignore_next = False
             continue
