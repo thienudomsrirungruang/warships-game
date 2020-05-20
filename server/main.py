@@ -72,10 +72,13 @@ class Player(object):
             elif len(split_input[1]) == 0:
                 self.output_queue.put("error please specify a name")
             else:
-                old_name = self.name
-                self.name = split_input[1]
-                self.output_queue.put("name {}".format(self.name))
-                chat_queue.put("{} has changed their name to {}".format(old_name, self.name))
+                if self.match is None:
+                    old_name = self.name
+                    self.name = split_input[1]
+                    self.output_queue.put("name {}".format(self.name))
+                    chat_queue.put("{} has changed their name to {}".format(old_name, self.name))
+                else:
+                    chat_queue.put("error cannot change name in match")
         elif keyword == "matchmake":
             if self.match is None:
                 if len(split_input) < 2:

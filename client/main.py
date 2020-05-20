@@ -453,7 +453,10 @@ def start_client():
                     elif split_input[1] == "":
                         add_to_chat("Usage: /chat <message>")
                     else:
-                        network_output_queue.put("chat {}".format(" ".join(split_input[1:])))
+                        if match is None:
+                            network_output_queue.put("chat {}".format(" ".join(split_input[1:])))
+                        else:
+                            add_to_chat("You cannot change your name in a match!")
                 else:
                     add_to_chat("Command not found.")
             else:
