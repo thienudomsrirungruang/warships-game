@@ -436,8 +436,10 @@ def start_client():
                         add_to_chat("Usage: /name <new name>")
                     elif split_input[1] == "":
                         add_to_chat("Usage: /name <new name>")
-                    else:
+                    elif match is None:
                         network_output_queue.put("name {}".format(split_input[1]))
+                    else:
+                        add_to_chat("You cannot change your name in a match!")
                 elif keyword == "match":
                     if match is None:
                         add_to_chat("You are not in a match.")
@@ -453,10 +455,7 @@ def start_client():
                     elif split_input[1] == "":
                         add_to_chat("Usage: /chat <message>")
                     else:
-                        if match is None:
-                            network_output_queue.put("chat {}".format(" ".join(split_input[1:])))
-                        else:
-                            add_to_chat("You cannot change your name in a match!")
+                        network_output_queue.put("chat {}".format(" ".join(split_input[1:])))
                 else:
                     add_to_chat("Command not found.")
             else:
